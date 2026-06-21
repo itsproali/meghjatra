@@ -19,7 +19,7 @@ export default function Home() {
 
   useEffect(() => {
     setNow(new Date());
-    const t = setInterval(() => setNow(new Date()), 60_000); // লাইভ কাউন্টডাউন
+    const t = setInterval(() => setNow(new Date()), 60_000); // live countdown
     fetch('/api/data', { cache: 'no-store' })
       .then((r) => r.json())
       .then((j: Partial<TripState>) => setTrip({ members: [], contributions: [], expenses: [], ...j }))
@@ -45,7 +45,7 @@ export default function Home() {
 
   return (
     <div className="mx-auto max-w-4xl p-4 pb-24 space-y-5">
-      {/* ─── হিরো ─── */}
+      {/* Hero */}
       <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-900 via-emerald-800 to-emerald-700 text-white p-6 sm:p-8 shadow-lg shadow-emerald-900/20">
         <Cloud className="absolute -top-4 -right-3 text-white/10" size={150} strokeWidth={1} />
         <MountainSnow className="absolute -bottom-6 -left-4 text-white/10" size={150} strokeWidth={1} />
@@ -53,7 +53,7 @@ export default function Home() {
           <p className="text-amber-300 text-xs font-semibold tracking-[0.2em] uppercase">{BRAND.tagline}</p>
           <h1 className="text-3xl sm:text-4xl font-bold mt-1.5">{TRIP.heroTitle}</h1>
 
-          {/* রুট স্টেপার */}
+          {/* route stepper */}
           <div className="flex items-center flex-wrap gap-x-1.5 gap-y-1 mt-3 text-sm text-emerald-50">
             {TRIP.route.map((r, i) => (
               <Fragment key={r}>
@@ -73,7 +73,7 @@ export default function Home() {
             ))}
           </div>
 
-          {/* কাউন্টডাউন */}
+          {/* countdown */}
           <div className="mt-5 bg-white/10 backdrop-blur rounded-2xl px-4 py-3.5 flex items-center justify-between">
             {days === null ? (
               <span className="text-emerald-100 text-sm">যাত্রার দিন গোনা হচ্ছে…</span>
@@ -103,7 +103,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ─── খরচের সারাংশ ─── */}
+      {/* Cost summary */}
       <section>
         <SectionHead icon={Wallet} title="খরচের সারাংশ" href="/cost" cta="বিস্তারিত হিসাব" />
         <div className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
@@ -123,7 +123,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ─── ছবির প্রিভিউ ─── */}
+      {/* Photo preview */}
       <section>
         <SectionHead icon={Camera} title="ট্যুরের ছবি" badge={photos.length || undefined} href="/gallery" cta="সব ছবি" />
         {photos.length === 0 ? (
@@ -143,7 +143,7 @@ export default function Home() {
         )}
       </section>
 
-      {/* ─── প্ল্যান টিজার (টাইমলাইন) ─── */}
+      {/* Plan teaser (timeline) */}
       <section>
         <SectionHead icon={Map} title="সংক্ষিপ্ত প্ল্যান" href="/plan" cta="বিস্তারিত" />
         <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-4 sm:p-5">
@@ -161,7 +161,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ─── জরুরি তথ্য ─── */}
+      {/* Pre-trip info */}
       <section>
         <h2 className="flex items-center gap-2 font-semibold text-stone-700 mb-2 px-1">
           <ShieldAlert size={18} className="text-amber-600" /> যাওয়ার আগে জেনে রাখো

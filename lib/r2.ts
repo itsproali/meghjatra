@@ -2,16 +2,15 @@ import {
   S3Client,
   PutObjectCommand,
   DeleteObjectCommand,
-  GetObjectCommand,
   ListObjectsV2Command,
   type ListObjectsV2CommandOutput,
 } from '@aws-sdk/client-s3';
 
-// ছবির ফাইল R2-তে রাখি। মেটাডেটা (caption/uploader/url) Supabase DB-তেই থাকে।
+// Photo files live in R2; their metadata (caption/uploader/url) lives in the Supabase DB.
 
 let _client: S3Client | null = null;
 
-// R2_ACCOUNT_ID-তে কেউ পুরো endpoint URL বসালেও যেন চলে — শুধু ID অংশটা বের করি
+// Accept a full endpoint URL in R2_ACCOUNT_ID and extract just the ID part.
 function accountId(raw: string): string {
   const m = raw.match(/([a-z0-9]+)\.r2\.cloudflarestorage\.com/i);
   if (m) return m[1];
@@ -35,43 +34,26 @@ export function r2(): S3Client | null {
 
 export const R2_BUCKET = process.env.R2_BUCKET || '';
 
-// পাবলিক URL শেষের '/' ছাড়া রাখি
+// Public URL kept without a trailing '/'.
 export const R2_PUBLIC_URL = (process.env.R2_PUBLIC_URL || '').replace(/\/+$/, '');
 
-// হার্ড স্টোরেজ লিমিট: ৯ GB। এর বেশি কোনোভাবে আপলোড করা যাবে না।
+// Hard storage limit: 9 GB. Uploads beyond this are always rejected.
 export const STORAGE_LIMIT = 9 * 1024 * 1024 * 1024;
 
-// R2_PUBLIC_URL ঠিকঠাক একটা পাবলিক হোস্ট কিনা। S3 API endpoint (cloudflarestorage.com)
-// কখনোই পাবলিক না — সেটা সেট থাকলে আমরা প্রক্সি দিয়ে ছবি সার্ভ করি।
+// Whether R2_PUBLIC_URL is a valid public host (pure string check, no R2 call).
+// False for the S3 API endpoint (cloudflarestorage.com) or empty — prevents storing a broken url on upload.
 export function r2PublicConfigured(): boolean {
-  return !!R2_PUBLIC_URL && !/cloudflarestorage\.com/i.test(R2_PUBLIC_URL);
+  return /^https?:\/\//i.test(R2_PUBLIC_URL) && !/cloudflarestorage\.com/i.test(R2_PUBLIC_URL);
 }
 
-// key-তে folder prefix / স্পেস / ইউনিকোড থাকতে পারে — প্রতিটা সেগমেন্ট আলাদা করে এনকোড করি
+// Built once on upload and saved to the DB; GET returns that saved url later.
+// A key may contain a folder prefix / spaces / unicode, so each segment is encoded separately.
 export function publicUrl(key: string): string {
   const encoded = key.split('/').map(encodeURIComponent).join('/');
-  // সঠিক পাবলিক URL সেট থাকলে r2.dev/কাস্টম ডোমেইন (egress ফ্রি)।
-  if (r2PublicConfigured()) return `${R2_PUBLIC_URL}/${encoded}`;
-  // না হলে অ্যাপের নিজের প্রক্সি দিয়ে সার্ভ করি — env ভুল থাকলেও ছবি কাজ করবে।
-  return `/api/img/${encoded}`;
+  return `${R2_PUBLIC_URL}/${encoded}`;
 }
 
-// প্রক্সির জন্য: R2 থেকে অবজেক্ট পড়ি (S3 creds দিয়ে)
-export async function r2Get(key: string): Promise<{ body: Uint8Array; contentType: string } | null> {
-  const c = r2();
-  if (!c) return null;
-  try {
-    const res = await c.send(new GetObjectCommand({ Bucket: R2_BUCKET, Key: key }));
-    if (!res.Body) return null;
-    const body = await res.Body.transformToByteArray();
-    return { body, contentType: res.ContentType || 'application/octet-stream' };
-  } catch {
-    return null;
-  }
-}
-
-// নতুন অ্যালবাম বানানোর সময় bucket-এ একটা ফোল্ডার মার্কার (`prefix/`) রাখি যাতে
-// ফাইল ছাড়াও R2 ড্যাশবোর্ডে ফোল্ডারটা দেখা যায়
+// On a new album, write a folder marker (`prefix/`) so the folder shows up in the R2 dashboard even with no files.
 export async function r2EnsureFolder(prefix: string): Promise<void> {
   const c = r2();
   if (!c) throw new Error('r2 not configured');
@@ -105,8 +87,8 @@ export async function r2Delete(key: string): Promise<void> {
   await c.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: key }));
 }
 
-// bucket-এর সব ফাইলের মোট সাইজ (bytes)। এটাই ৯GB গার্ডের ground truth —
-// কোনো কাউন্টার drift হয় না, সরাসরি R2 থেকে পড়ে।
+// Total size of all bucket files (bytes) — the ground truth for the 9GB guard,
+// read straight from R2 so no counter can drift.
 export async function r2TotalBytes(): Promise<number> {
   const c = r2();
   if (!c) throw new Error('r2 not configured');

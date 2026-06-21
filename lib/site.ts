@@ -1,14 +1,12 @@
-// ──────────────────────────────────────────────────────────────────────────
-// সব এডিটযোগ্য কনটেন্ট/কন্সট্যান্ট এক জায়গায়।
-// ব্র্যান্ড, ট্রিপ তথ্য, প্ল্যান, কিট, জরুরি তথ্য — সব এখান থেকে বদলাও।
-// পেজগুলো (Home, Plan, Nav, layout) এখান থেকেই ডেটা নেয়।
-// ──────────────────────────────────────────────────────────────────────────
+// All editable content/constants in one place.
+// Brand, trip info, plan, kit, pre-trip info — edit everything here.
+// Pages (Home, Plan, Nav, layout) read their data from here.
 import {
   ShieldAlert, Signal, Banknote, IdCard, BatteryCharging, Umbrella,
   type LucideIcon,
 } from 'lucide-react';
 
-// ── ব্র্যান্ড ───────────────────────────────────────────────────────────────
+// Brand
 export const BRAND = {
   name: 'মেঘযাত্রা',
   tagline: 'মেঘের রাজ্যে',
@@ -16,16 +14,16 @@ export const BRAND = {
   description: 'সাজেক ট্যুরের খরচের হিসাব, ছবি ও প্ল্যান — মেঘের রাজ্যে',
 };
 
-// ── ট্রিপ তথ্য ─────────────────────────────────────────────────────────────
+// Trip info
 export const TRIP = {
   heroTitle: 'সাজেক ভ্যালি ট্যুর',
-  route: ['ঢাকা', 'খাগড়াছড়ি', 'সাজেক'], // হিরোতে স্টেপার হিসেবে দেখায়
+  route: ['ঢাকা', 'খাগড়াছড়ি', 'সাজেক'], // shown as a stepper in the hero
   chips: ['২ দিন ৩ রাত', '২৫–২৭ জুন ২০২৬', '৬–৭ জন'],
-  departIso: '2026-06-25T22:00:00+06:00', // যাত্রার সময় (কাউন্টডাউন এখান থেকে)
+  departIso: '2026-06-25T22:00:00+06:00', // departure time (drives the countdown)
   footer: 'সাজেক ট্যুর · ২৫–২৭ জুন ২০২৬ · বন্ধুদের জন্য বানানো',
 };
 
-// ── হোমের সংক্ষিপ্ত প্ল্যান (টিজার) ──────────────────────────────────────────
+// Home plan teaser
 export interface TeaserDay { no: string; title: string; detail: string; }
 export const PLAN_TEASER: TeaserDay[] = [
   { no: '০', title: 'ঢাকা থেকে যাত্রা', detail: '২৫ জুন · রাত ১০–১১টা বাসে' },
@@ -33,18 +31,18 @@ export const PLAN_TEASER: TeaserDay[] = [
   { no: '২', title: 'সাজেক → ঢাকা', detail: '২৭ জুন · মেঘ, রিসাং ঝর্ণা, আলুটিলা' },
 ];
 
-// ── হোমের "যাওয়ার আগে জেনে রাখো" কার্ড ─────────────────────────────────────
+// Home "before you go" cards
 export interface InfoItem { icon: LucideIcon; title: string; body: string; }
 export const PRE_TRIP_INFO: InfoItem[] = [
   { icon: ShieldAlert, title: 'আর্মি এসকর্ট', body: 'বাঘাইহাট থেকে ~১০:৩০ ও ~৩:৩০টায় ছাড়ে — সময় মিস করা যাবে না।' },
   { icon: Signal, title: 'নেটওয়ার্ক', body: 'শুধু রবি / এয়ারটেল / টেলিটক চলে। অন্য সিম নিলে নেট পাবে না।' },
   { icon: Banknote, title: 'ক্যাশ নাও', body: 'সাজেকে ATM নেই। যথেষ্ট নগদ টাকা সাথে রাখো।' },
-  { icon: IdCard, title: 'NID লাগবে', body: 'চেকপোস্টের জন্য NID-র ফটোকপি ৩–৪ কপি সাথে নাও।' },
+  { icon: IdCard, title: 'NID লাগবে', body: 'চেকপোস্টের জন্য NID-র ফটোকপি সাথে নাও।' },
   { icon: BatteryCharging, title: 'বিদ্যুৎ সীমিত', body: 'পাওয়ার ব্যাংক নিয়ে যাও — চার্জের সুযোগ কম।' },
   { icon: Umbrella, title: 'বর্ষাকাল', body: 'ছাতা সাথে রাখো, পাহাড়ি পথে গ্রিপওয়ালা জুতা পরো।' },
 ];
 
-// ── পূর্ণ itinerary (Plan পেজ) ──────────────────────────────────────────────
+// Full itinerary (Plan page)
 export interface PlanStop { t: string; a: string; hl?: boolean; }
 export interface PlanDay { no: string; title: string; route: string; stops: PlanStop[]; }
 export const PLAN_DAYS: PlanDay[] = [
@@ -86,18 +84,18 @@ export const PLAN_DAYS: PlanDay[] = [
   },
 ];
 
-// ── কিট/চেকলিস্ট (Plan পেজ) ────────────────────────────────────────────────
+// Kit / checklist (Plan page)
 export const KIT: string[] = [
-  'NID ফটোকপি ৩–৪ কপি',
+  'NID ফটোকপি',
   'পাওয়ার ব্যাংক',
   'যথেষ্ট ক্যাশ — ATM নেই',
   'রবি / এয়ারটেল / টেলিটক সিম',
-  'ছাতা',
   'গ্রিপওয়ালা জুতা',
   'মোশন সিকনেস ট্যাবলেট',
+  'ছাতা',
   'টর্চ',
 ];
 
-// বাংলা সংখ্যা হেল্পার (অনেক জায়গায় লাগে)
+// Bengali numeral helper
 export const toBn = (n: number | string) =>
   n.toString().replace(/\d/g, (d) => '০১২৩৪৫৬৭৮৯'[+d]);

@@ -21,7 +21,7 @@ export default function Gallery() {
   const [drag, setDrag] = useState(false);
   const [confirm, setConfirm] = useState<Photo | null>(null);
   const [lightbox, setLightbox] = useState<number | null>(null);
-  // ফোল্ডার: আপলোডের জন্য নির্বাচিত, নতুন বানানোর মোড, আর দেখার সময় কোন ফোল্ডার
+  // folder state: selected for upload, new-folder mode, and the active view filter
   const [folder, setFolder] = useState('');
   const [newFolderMode, setNewFolderMode] = useState(false);
   const [newFolder, setNewFolder] = useState('');
@@ -50,14 +50,14 @@ export default function Gallery() {
     load();
   }, []);
 
-  // নির্বাচিত ফাইলগুলোর প্রিভিউ URL — বদলালে আগেরগুলো revoke
+  // object URLs for selected files — revoke the old ones when files change
   useEffect(() => {
     const urls = files.map((f) => URL.createObjectURL(f));
     setPreviews(urls);
     return () => urls.forEach((u) => URL.revokeObjectURL(u));
   }, [files]);
 
-  // কোনো অ্যালবাম না থাকলে আপলোড করতে হলে নতুন বানাতেই হবে
+  // no albums yet → force new-album mode so an upload must create one
   useEffect(() => {
     if (!loading && realFolders.length === 0) setNewFolderMode(true);
   }, [loading, realFolders.length]);
@@ -93,7 +93,7 @@ export default function Gallery() {
       setErr('একটা অ্যালবাম বেছে নাও বা নতুন বানাও');
       return;
     }
-    // নতুন অ্যালবাম হলে এবং ইতিমধ্যে ১৫টা থাকলে আটকাও
+    // block a new album once the limit is reached
     if (!realFolders.includes(folderToSend) && atFolderLimit) {
       setErr(`সর্বোচ্চ ${toBn(MAX_FOLDERS)}টা অ্যালবাম বানানো যাবে`);
       return;
@@ -122,7 +122,7 @@ export default function Gallery() {
       } catch (e) {
         const m = e instanceof Error ? e.message : '';
         failMsg = m && m !== 'failed' ? m : 'কিছু ছবি আপলোড হয়নি';
-        break; // লিমিট/এরর হলে থেমে যাই
+        break; // stop on limit/error
       }
     }
     setProgress(null);
@@ -130,7 +130,7 @@ export default function Gallery() {
     if (ok > 0) {
       setFiles([]);
       setCaption('');
-      // নতুন ফোল্ডারে আপলোড হলে সেটাকেই নির্বাচিত রাখি, যাতে পরের আপলোডও ওখানেই যায়
+      // keep the new folder selected so later uploads go there too
       if (folderToSend) {
         setFolder(folderToSend);
         setActiveFolder(folderToSend);
@@ -167,7 +167,7 @@ export default function Gallery() {
     }
   }
 
-  // লাইটবক্স কীবোর্ড নেভিগেশন
+  // lightbox keyboard navigation
   const move = useCallback(
     (d: number) => setLightbox((cur) => (cur === null ? cur : (cur + d + shown.length) % shown.length)),
     [shown.length]
@@ -190,7 +190,7 @@ export default function Gallery() {
         <p className="text-sm text-stone-500">যে কেউ ছবি শেয়ার করতে পারবে · সবাই দেখতে ও ডাউনলোড করতে পারবে</p>
       </header>
 
-      {/* আপলোড কার্ড */}
+      {/* Upload card */}
       <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-4 mb-5">
         <label
           htmlFor="photo-input"
@@ -222,7 +222,6 @@ export default function Gallery() {
           onChange={(e) => addFiles(e.target.files)}
         />
 
-        {/* নির্বাচিত ছবির প্রিভিউ */}
         {previews.length > 0 && (
           <div className="mt-3">
             <p className="text-xs text-stone-500 mb-2">{toBn(previews.length)} টা ছবি নির্বাচিত</p>
@@ -246,7 +245,7 @@ export default function Gallery() {
           </div>
         )}
 
-        {/* অ্যালবাম নির্বাচন */}
+        {/* Album select */}
         <div className="mt-3">
           <label className="text-xs text-stone-500 mb-1 flex items-center gap-1">
             <Folder size={13} /> কোন অ্যালবামে রাখবে?
@@ -326,7 +325,7 @@ export default function Gallery() {
         </button>
       </div>
 
-      {/* ফোল্ডার ফিল্টার */}
+      {/* Album filter */}
       {(realFolders.length > 0 || hasUncat) && (
         <div className="flex flex-wrap gap-2 mb-4">
           {[
@@ -354,7 +353,7 @@ export default function Gallery() {
         </div>
       )}
 
-      {/* গ্রিড */}
+      {/* Grid */}
       {loading ? (
         <div className="flex items-center justify-center gap-2 text-stone-400 py-16">
           <Loader2 size={18} className="animate-spin" /> লোড হচ্ছে…
@@ -376,7 +375,7 @@ export default function Gallery() {
                 onClick={() => setLightbox(i)}
                 className="w-full h-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-105"
               />
-              {/* অ্যাকশন — মোবাইলে সবসময়, ডেস্কটপে হোভারে */}
+              {/* actions: always on mobile, on hover for desktop */}
               <div className="absolute top-2 right-2 flex gap-1.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                 <button
                   onClick={() => download(p.url, i)}
@@ -408,7 +407,7 @@ export default function Gallery() {
         </div>
       )}
 
-      {/* লাইটবক্স */}
+      {/* Lightbox */}
       {lightbox !== null && shown[lightbox] && (
         <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex flex-col" onClick={() => setLightbox(null)}>
           <div className="flex items-center justify-between p-4 text-white/90">

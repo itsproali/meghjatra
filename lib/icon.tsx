@@ -1,5 +1,5 @@
-// মেঘযাত্রা ব্র্যান্ড আইকন — এক জায়গায় SVG সোর্স, এখান থেকেই favicon/apple-icon/PWA আইকন বানানো হয়।
-// পাহাড় + মেঘ + সূর্য, emerald/amber থিম। কোনো টেক্সট নেই (Satori ফন্ট ছাড়াই রেন্ডার করতে পারে)।
+// Single SVG source for the brand icon — favicon/apple-icon/PWA icons are all generated from this.
+// No text, so ImageResponse (Satori) can render it without a font.
 export const ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
@@ -26,7 +26,7 @@ export const ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 51
 
 export const ICON_DATA_URI = `data:image/svg+xml;base64,${Buffer.from(ICON_SVG).toString('base64')}`;
 
-// ImageResponse-এর জন্য রেন্ডার এলিমেন্ট — পুরো ক্যানভাস জুড়ে আইকনটা বসায়
+// Render element for ImageResponse — fills the whole canvas with the icon.
 export function IconImage(size: number) {
   return (
     <div style={{ display: 'flex', width: '100%', height: '100%' }}>

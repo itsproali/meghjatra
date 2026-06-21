@@ -61,9 +61,9 @@ lib/
   site.ts                 ⭐ সব এডিটযোগ্য কনটেন্ট: BRAND, TRIP, PLAN_DAYS, KIT, PRE_TRIP_INFO, PLAN_TEASER, toBn
   types.ts                Member, Contribution, Expense, TripState, Photo
   supabase.ts             admin() ক্লায়েন্ট, isOwnerRequest()
-  r2.ts                   R2 S3 client; r2Upload/r2Delete/r2Get/r2TotalBytes; publicUrl(); STORAGE_LIMIT=৯GB
+  r2.ts                   R2 S3 client; r2Upload/r2Delete/r2EnsureFolder/r2TotalBytes; publicUrl(); STORAGE_LIMIT=৯GB
 ```
-> **ছবির URL**: `publicUrl(key)` — `R2_PUBLIC_URL` ঠিকঠাক পাবলিক হোস্ট হলে (`pub-xxxx.r2.dev`/কাস্টম ডোমেইন) সরাসরি সেই URL (egress ফ্রি)। কিন্তু `R2_PUBLIC_URL` খালি বা ভুল করে S3 endpoint (`*.r2.cloudflarestorage.com`) সেট থাকলে — যেটা কখনো পাবলিক না — তখন আপনাআপনি `/api/img/<key>` প্রক্সি দিয়ে সার্ভ হয় (`app/api/img/[...key]/route.ts` → `r2Get`)। GET `/api/photos` সবসময় `path` থেকে `publicUrl()` দিয়ে url বানায়, DB-র সেভ করা পুরোনো url-এর উপর নির্ভর করে না। ছবি key folder-prefixed (`<album>/<file>`); publicUrl প্রতিটা সেগমেন্ট এনকোড করে।
+> **ছবির URL**: DB-ই url-এর সোর্স। আপলোডের সময় (POST) একবার `publicUrl(path)` দিয়ে পূর্ণ পাবলিক URL বানিয়ে `photos.url`-এ সেভ হয়; GET `/api/photos` সবসময় সেই **সেভ করা url** ফেরত দেয় — ব্রাউজার সরাসরি R2 (`R2_PUBLIC_URL` = `pub-xxxx.r2.dev`/কাস্টম ডোমেইন) থেকে ছবি নেয়, অ্যাপের কোনো রানটাইম R2 নির্ভরতা নেই। তাই **`R2_PUBLIC_URL` অবশ্যই সঠিক পাবলিক হোস্ট হতে হবে** (S3 endpoint `*.r2.cloudflarestorage.com` দিলে url ভাঙবে)। key folder-prefixed (`<album>/<file>`); publicUrl প্রতিটা সেগমেন্ট এনকোড করে (স্পেস/ইউনিকোড)।
 > ব্র্যান্ড নাম, ট্রিপ তারিখ/রুট, প্ল্যান, কিট, জরুরি তথ্য — সব **`lib/site.ts`**-এ। কনটেন্ট বদলাতে শুধু ওই ফাইলটা এডিট করো; Home/Plan/Nav/layout ওখান থেকেই নেয়।
 
 ## ডেটা মডেল (`lib/types.ts`)
