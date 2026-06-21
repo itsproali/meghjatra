@@ -1,19 +1,29 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useMemo, ReactNode } from 'react';
+import { useState, useEffect, useMemo, ReactNode } from "react";
 import {
-  Wallet, TrendingDown, PiggyBank, Plus, Trash2, Users,
-  Receipt, Scale, X, HandCoins, Eye, Loader2, type LucideIcon,
-} from 'lucide-react';
-import ConfirmDialog from './ConfirmDialog';
-import { useOwner } from './OwnerProvider';
-import type { Member, Contribution, Expense, TripState } from '../lib/types';
+  Wallet,
+  TrendingDown,
+  PiggyBank,
+  Plus,
+  Trash2,
+  Receipt,
+  Scale,
+  X,
+  HandCoins,
+  Eye,
+  Loader2,
+  type LucideIcon,
+} from "lucide-react";
+import ConfirmDialog from "./ConfirmDialog";
+import { useOwner } from "./OwnerProvider";
+import type { Member, Contribution, Expense, TripState } from "../lib/types";
 
 const EMPTY: TripState = { members: [], contributions: [], expenses: [] };
-const CATS = ['যাতায়াত', 'খাবার', 'রিসোর্ট', 'অ্যাক্টিভিটি', 'অন্যান্য'];
+const CATS = ["যাতায়াত", "খাবার", "রিসোর্ট", "অ্যাক্টিভিটি", "অন্যান্য"];
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-const fmt = (n: number) => '৳' + Math.round(n).toLocaleString('en-US');
+const fmt = (n: number) => "৳" + Math.round(n).toLocaleString("en-US");
 
 interface Balance extends Member {
   given: number;
@@ -38,13 +48,13 @@ export default function CostManager() {
   const { isOwner, ownerKey } = useOwner();
   const [data, setData] = useState<TripState>(EMPTY);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'dash' | 'give' | 'spend' | 'split'>('dash');
+  const [tab, setTab] = useState<"dash" | "give" | "spend" | "split">("dash");
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
 
   useEffect(() => {
     (async () => {
       try {
-        const r = await fetch('/api/data', { cache: 'no-store' });
+        const r = await fetch("/api/data", { cache: "no-store" });
         const j = (await r.json()) as Partial<TripState>;
         setData({ ...EMPTY, ...j });
       } catch {
@@ -55,9 +65,9 @@ export default function CostManager() {
   }, []);
 
   function persist(next: TripState) {
-    fetch('/api/data', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-owner-key': ownerKey },
+    fetch("/api/data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-owner-key": ownerKey },
       body: JSON.stringify(next),
     }).catch(() => {});
   }
@@ -78,20 +88,23 @@ export default function CostManager() {
     data.members.forEach((m) => (givenBy[m.id] = 0));
     data.contributions.forEach((c) => (givenBy[c.memberId] = (givenBy[c.memberId] || 0) + c.amount));
     const balances: Balance[] = data.members.map((m) => ({
-      ...m, given: givenBy[m.id] || 0, share, balance: (givenBy[m.id] || 0) - share,
+      ...m,
+      given: givenBy[m.id] || 0,
+      share,
+      balance: (givenBy[m.id] || 0) - share,
     }));
     const byCat: Record<string, number> = {};
     data.expenses.forEach((e) => {
-      const k = e.category || 'অন্যান্য';
+      const k = e.category || "অন্যান্য";
       byCat[k] = (byCat[k] || 0) + e.amount;
     });
     return { fund, spent, remaining: fund - spent, share, balances, byCat };
   }, [data]);
 
   const addMember = (name: string) => mutate((d) => ({ ...d, members: [...d.members, { id: uid(), name }] }));
-  const addContribution = (c: Omit<Contribution, 'id'>) =>
+  const addContribution = (c: Omit<Contribution, "id">) =>
     mutate((d) => ({ ...d, contributions: [{ id: uid(), ...c }, ...d.contributions] }));
-  const addExpense = (e: Omit<Expense, 'id' | 'ts'>) =>
+  const addExpense = (e: Omit<Expense, "id" | "ts">) =>
     mutate((d) => ({ ...d, expenses: [{ id: uid(), ts: Date.now(), ...e }, ...d.expenses] }));
 
   const doDelMember = (id: string) =>
@@ -101,25 +114,27 @@ export default function CostManager() {
       contributions: d.contributions.filter((c) => c.memberId !== id),
       expenses: d.expenses.map((e) => (e.paidBy === id ? { ...e, paidBy: null } : e)),
     }));
-  const doDelContribution = (id: string) =>
-    mutate((d) => ({ ...d, contributions: d.contributions.filter((c) => c.id !== id) }));
-  const doDelExpense = (id: string) =>
-    mutate((d) => ({ ...d, expenses: d.expenses.filter((e) => e.id !== id) }));
+  const doDelContribution = (id: string) => mutate((d) => ({ ...d, contributions: d.contributions.filter((c) => c.id !== id) }));
+  const doDelExpense = (id: string) => mutate((d) => ({ ...d, expenses: d.expenses.filter((e) => e.id !== id) }));
 
-  const nameOf = (id: string | null) => data.members.find((m) => m.id === id)?.name || '—';
+  const nameOf = (id: string | null) => data.members.find((m) => m.id === id)?.name || "—";
 
   const askDelMember = (m: Member) =>
-    setConfirm({ title: 'সদস্য মুছবেন?', message: `"${m.name}" এবং তার সব জমা মুছে যাবে।`, onYes: () => doDelMember(m.id) });
+    setConfirm({ title: "সদস্য মুছবেন?", message: `"${m.name}" এবং তার সব জমা মুছে যাবে।`, onYes: () => doDelMember(m.id) });
   const askDelContribution = (c: Contribution) =>
-    setConfirm({ title: 'জমা মুছবেন?', message: `${nameOf(c.memberId)} — ${fmt(c.amount)} জমা মুছে যাবে।`, onYes: () => doDelContribution(c.id) });
+    setConfirm({
+      title: "জমা মুছবেন?",
+      message: `${nameOf(c.memberId)} — ${fmt(c.amount)} জমা মুছে যাবে।`,
+      onYes: () => doDelContribution(c.id),
+    });
   const askDelExpense = (e: Expense) =>
-    setConfirm({ title: 'খরচ মুছবেন?', message: `"${e.desc || 'খরচ'}" — ${fmt(e.amount)} মুছে যাবে।`, onYes: () => doDelExpense(e.id) });
+    setConfirm({ title: "খরচ মুছবেন?", message: `"${e.desc || "খরচ"}" — ${fmt(e.amount)} মুছে যাবে।`, onYes: () => doDelExpense(e.id) });
 
   const tabs: { k: typeof tab; label: string; icon: LucideIcon }[] = [
-    { k: 'dash', label: 'ড্যাশবোর্ড', icon: Wallet },
-    { k: 'give', label: 'জমা', icon: HandCoins },
-    { k: 'spend', label: 'খরচ', icon: Receipt },
-    { k: 'split', label: 'ভাগ', icon: Scale },
+    { k: "dash", label: "ড্যাশবোর্ড", icon: Wallet },
+    { k: "give", label: "জমা", icon: HandCoins },
+    { k: "spend", label: "খরচ", icon: Receipt },
+    { k: "split", label: "ভাগ", icon: Scale },
   ];
 
   return (
@@ -131,7 +146,7 @@ export default function CostManager() {
 
       {!isOwner && (
         <div className="flex items-center gap-2 text-sm bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-3 py-2 mb-4">
-          <Eye size={15} /> তুমি ভিউ মোডে আছো — এডিট করতে উপরে <b>ম্যানেজ</b> এ লগইন করো।
+          <Eye size={15} /> তুমি ভিউ মোডে আছো
         </div>
       )}
 
@@ -144,7 +159,7 @@ export default function CostManager() {
           <div className="grid grid-cols-3 gap-3 mb-5">
             <Stat icon={PiggyBank} label="মোট জমা" value={fmt(calc.fund)} tone="emerald" />
             <Stat icon={TrendingDown} label="মোট খরচ" value={fmt(calc.spent)} tone="rose" />
-            <Stat icon={Wallet} label="অবশিষ্ট" value={fmt(calc.remaining)} tone={calc.remaining < 0 ? 'rose' : 'amber'} />
+            <Stat icon={Wallet} label="অবশিষ্ট" value={fmt(calc.remaining)} tone={calc.remaining < 0 ? "rose" : "amber"} />
           </div>
 
           <nav className="flex gap-1 mb-4 bg-white rounded-xl border border-stone-200 shadow-sm p-1">
@@ -156,8 +171,8 @@ export default function CostManager() {
                   key={t.k}
                   onClick={() => setTab(t.k)}
                   className={
-                    'flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-medium transition-colors ' +
-                    (on ? 'bg-emerald-700 text-white' : 'text-stone-600 hover:bg-stone-100')
+                    "flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-medium transition-colors " +
+                    (on ? "bg-emerald-700 text-white" : "text-stone-600 hover:bg-stone-100")
                   }
                 >
                   <A size={16} />
@@ -167,8 +182,8 @@ export default function CostManager() {
             })}
           </nav>
 
-          {tab === 'dash' && <Dash calc={calc} data={data} />}
-          {tab === 'give' && (
+          {tab === "dash" && <Dash calc={calc} data={data} />}
+          {tab === "give" && (
             <Give
               canEdit={isOwner}
               members={data.members}
@@ -181,7 +196,7 @@ export default function CostManager() {
               onDel={askDelContribution}
             />
           )}
-          {tab === 'spend' && (
+          {tab === "spend" && (
             <Spend
               canEdit={isOwner}
               members={data.members}
@@ -191,7 +206,7 @@ export default function CostManager() {
               onDel={askDelExpense}
             />
           )}
-          {tab === 'split' && <Split calc={calc} count={data.members.length} />}
+          {tab === "split" && <Split calc={calc} count={data.members.length} />}
         </>
       )}
 
@@ -209,15 +224,15 @@ export default function CostManager() {
   );
 }
 
-function Stat({ icon: Icon, label, value, tone }: { icon: LucideIcon; label: string; value: string; tone: 'emerald' | 'rose' | 'amber' }) {
-  const tones: Record<string, string> = { emerald: 'text-emerald-700', rose: 'text-rose-600', amber: 'text-amber-600' };
+function Stat({ icon: Icon, label, value, tone }: { icon: LucideIcon; label: string; value: string; tone: "emerald" | "rose" | "amber" }) {
+  const tones: Record<string, string> = { emerald: "text-emerald-700", rose: "text-rose-600", amber: "text-amber-600" };
   return (
     <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-3">
       <div className="flex items-center gap-1.5 text-stone-500 mb-1">
         <Icon size={15} />
         <span className="text-xs">{label}</span>
       </div>
-      <div className={'text-lg font-bold ' + tones[tone]}>{value}</div>
+      <div className={"text-lg font-bold " + tones[tone]}>{value}</div>
     </div>
   );
 }
@@ -253,7 +268,7 @@ function Dash({ calc, data }: { calc: Calc; data: TripState }) {
                   <span className="font-medium">{fmt(v)}</span>
                 </div>
                 <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-500 rounded-full" style={{ width: (v / max) * 100 + '%' }} />
+                  <div className="h-full bg-emerald-500 rounded-full" style={{ width: (v / max) * 100 + "%" }} />
                 </div>
               </div>
             ))}
@@ -268,7 +283,7 @@ function Dash({ calc, data }: { calc: Calc; data: TripState }) {
             {recent.map((e) => (
               <li key={e.id} className="flex justify-between items-center py-2 text-sm">
                 <div>
-                  <span className="text-stone-700">{e.desc || 'খরচ'}</span>
+                  <span className="text-stone-700">{e.desc || "খরচ"}</span>
                   {e.category && <span className="ml-2 text-xs bg-stone-100 text-stone-500 rounded-full px-2 py-0.5">{e.category}</span>}
                 </div>
                 <span className="font-medium text-rose-600">{fmt(e.amount)}</span>
@@ -289,28 +304,28 @@ interface GiveProps {
   balances: Balance[];
   onAddMember: (name: string) => void;
   onDelMember: (m: Member) => void;
-  onAdd: (c: Omit<Contribution, 'id'>) => void;
+  onAdd: (c: Omit<Contribution, "id">) => void;
   onDel: (c: Contribution) => void;
 }
 
 function Give({ canEdit, members, contributions, nameOf, balances, onAddMember, onDelMember, onAdd, onDel }: GiveProps) {
-  const [name, setName] = useState('');
-  const [mid, setMid] = useState('');
-  const [amt, setAmt] = useState('');
-  const [note, setNote] = useState('');
+  const [name, setName] = useState("");
+  const [mid, setMid] = useState("");
+  const [amt, setAmt] = useState("");
+  const [note, setNote] = useState("");
 
   const submitMember = () => {
     if (name.trim()) {
       onAddMember(name.trim());
-      setName('');
+      setName("");
     }
   };
   const submit = () => {
     const a = parseFloat(amt);
     if (!mid || !a || a <= 0) return;
     onAdd({ memberId: mid, amount: a, note: note.trim() });
-    setAmt('');
-    setNote('');
+    setAmt("");
+    setNote("");
   };
 
   return (
@@ -321,7 +336,7 @@ function Give({ canEdit, members, contributions, nameOf, balances, onAddMember, 
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && submitMember()}
+              onKeyDown={(e) => e.key === "Enter" && submitMember()}
               placeholder="নাম লিখুন"
               className="flex-1 rounded-lg border border-stone-300 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
             />
@@ -333,20 +348,29 @@ function Give({ canEdit, members, contributions, nameOf, balances, onAddMember, 
         {members.length === 0 ? (
           <Empty text="কোনো সদস্য নেই" />
         ) : (
-          <div className="flex flex-wrap gap-2">
+          <ul className="divide-y divide-stone-100 rounded-xl border border-stone-200 overflow-hidden">
             {balances.map((m) => (
-              <span key={m.id} className="inline-flex items-center gap-2 bg-stone-100 rounded-full pl-3 pr-3 py-1 text-sm">
-                <Users size={13} className="text-stone-400" />
-                {m.name}
-                <span className="text-emerald-700 font-medium">{fmt(m.given)}</span>
+              <li key={m.id} className="flex items-center gap-3 px-3 py-2.5 bg-white hover:bg-stone-50 transition-colors">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 text-sm font-semibold">
+                  {m.name.trim().slice(0, 1) || "?"}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-stone-800 truncate">{m.name}</p>
+                  <p className="text-xs text-stone-400">জমা দিয়েছে</p>
+                </div>
+                <span className="text-emerald-700 font-semibold text-sm tabular-nums">{fmt(m.given)}</span>
                 {canEdit && (
-                  <button onClick={() => onDelMember(m)} className="text-stone-400 hover:text-rose-500 rounded-full -mr-1">
-                    <X size={14} />
+                  <button
+                    onClick={() => onDelMember(m)}
+                    className="text-stone-300 hover:text-rose-500 transition-colors shrink-0"
+                    title="মুছুন"
+                  >
+                    <X size={16} />
                   </button>
                 )}
-              </span>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </Card>
 
@@ -364,7 +388,9 @@ function Give({ canEdit, members, contributions, nameOf, balances, onAddMember, 
                 >
                   <option value="">কে দিল?</option>
                   {members.map((m) => (
-                    <option key={m.id} value={m.id}>{m.name}</option>
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
                   ))}
                 </select>
                 <input
@@ -379,11 +405,13 @@ function Give({ canEdit, members, contributions, nameOf, balances, onAddMember, 
                 <input
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && submit()}
+                  onKeyDown={(e) => e.key === "Enter" && submit()}
                   placeholder="নোট (অপশনাল)"
                   className="flex-1 rounded-lg border border-stone-300 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
                 />
-                <button onClick={submit} className="bg-emerald-700 text-white rounded-lg px-4 py-2 text-sm">যোগ</button>
+                <button onClick={submit} className="bg-emerald-700 text-white rounded-lg px-4 py-2 text-sm">
+                  যোগ
+                </button>
               </div>
             </>
           )}
@@ -423,24 +451,24 @@ interface SpendProps {
   members: Member[];
   expenses: Expense[];
   nameOf: (id: string | null) => string;
-  onAdd: (e: Omit<Expense, 'id' | 'ts'>) => void;
+  onAdd: (e: Omit<Expense, "id" | "ts">) => void;
   onDel: (e: Expense) => void;
 }
 
 function Spend({ canEdit, members, expenses, nameOf, onAdd, onDel }: SpendProps) {
-  const [amt, setAmt] = useState('');
-  const [desc, setDesc] = useState('');
-  const [cat, setCat] = useState('');
-  const [paidBy, setPaidBy] = useState('');
+  const [amt, setAmt] = useState("");
+  const [desc, setDesc] = useState("");
+  const [cat, setCat] = useState("");
+  const [paidBy, setPaidBy] = useState("");
 
   const submit = () => {
     const a = parseFloat(amt);
     if (!a || a <= 0) return;
     onAdd({ amount: a, desc: desc.trim(), category: cat || null, paidBy: paidBy || null });
-    setAmt('');
-    setDesc('');
-    setCat('');
-    setPaidBy('');
+    setAmt("");
+    setDesc("");
+    setCat("");
+    setPaidBy("");
   };
 
   return (
@@ -448,28 +476,52 @@ function Spend({ canEdit, members, expenses, nameOf, onAdd, onDel }: SpendProps)
       {canEdit && (
         <Card title="খরচ যোগ করুন">
           <div className="grid grid-cols-2 gap-2 mb-2">
-            <input value={amt} onChange={(e) => setAmt(e.target.value)} type="number" placeholder="টাকা *" className="rounded-lg border border-stone-300 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500" />
-            <input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="কী খরচ?" className="rounded-lg border border-stone-300 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500" />
+            <input
+              value={amt}
+              onChange={(e) => setAmt(e.target.value)}
+              type="number"
+              placeholder="টাকা *"
+              className="rounded-lg border border-stone-300 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
+            />
+            <input
+              value={desc}
+              onChange={(e) => setDesc(e.target.value)}
+              placeholder="কী খরচ?"
+              className="rounded-lg border border-stone-300 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
+            />
           </div>
           <div className="flex flex-wrap gap-1.5 mb-2">
             {CATS.map((c) => (
               <button
                 key={c}
-                onClick={() => setCat(cat === c ? '' : c)}
-                className={'text-xs rounded-full px-3 py-1 border transition-colors ' + (cat === c ? 'bg-emerald-700 text-white border-emerald-700' : 'bg-white text-stone-600 border-stone-300 hover:border-emerald-400')}
+                onClick={() => setCat(cat === c ? "" : c)}
+                className={
+                  "text-xs rounded-full px-3 py-1 border transition-colors " +
+                  (cat === c
+                    ? "bg-emerald-700 text-white border-emerald-700"
+                    : "bg-white text-stone-600 border-stone-300 hover:border-emerald-400")
+                }
               >
                 {c}
               </button>
             ))}
           </div>
           <div className="flex gap-2">
-            <select value={paidBy} onChange={(e) => setPaidBy(e.target.value)} className="flex-1 rounded-lg border border-stone-300 px-3 py-2 text-sm bg-white focus:outline-none focus:border-emerald-500">
+            <select
+              value={paidBy}
+              onChange={(e) => setPaidBy(e.target.value)}
+              className="flex-1 rounded-lg border border-stone-300 px-3 py-2 text-sm bg-white focus:outline-none focus:border-emerald-500"
+            >
               <option value="">ফান্ড থেকে (অপশনাল: কে দিল)</option>
               {members.map((m) => (
-                <option key={m.id} value={m.id}>{m.name} দিয়েছে</option>
+                <option key={m.id} value={m.id}>
+                  {m.name} দিয়েছে
+                </option>
               ))}
             </select>
-            <button onClick={submit} className="bg-emerald-700 text-white rounded-lg px-4 py-2 text-sm">যোগ</button>
+            <button onClick={submit} className="bg-emerald-700 text-white rounded-lg px-4 py-2 text-sm">
+              যোগ
+            </button>
           </div>
         </Card>
       )}
@@ -482,7 +534,7 @@ function Spend({ canEdit, members, expenses, nameOf, onAdd, onDel }: SpendProps)
             {expenses.map((e) => (
               <li key={e.id} className="flex justify-between items-center py-2.5 text-sm">
                 <div className="min-w-0">
-                  <div className="text-stone-700 truncate">{e.desc || 'খরচ'}</div>
+                  <div className="text-stone-700 truncate">{e.desc || "খরচ"}</div>
                   <div className="flex items-center gap-2 mt-0.5">
                     {e.category && <span className="text-xs bg-stone-100 text-stone-500 rounded-full px-2 py-0.5">{e.category}</span>}
                     {e.paidBy && <span className="text-xs text-stone-400">{nameOf(e.paidBy)} দিয়েছে</span>}
@@ -506,7 +558,12 @@ function Spend({ canEdit, members, expenses, nameOf, onAdd, onDel }: SpendProps)
 }
 
 function Split({ calc, count }: { calc: Calc; count: number }) {
-  if (count === 0) return <Card><Empty text="সদস্য ও খরচ যোগ হলে হিসাব দেখা যাবে" /></Card>;
+  if (count === 0)
+    return (
+      <Card>
+        <Empty text="সদস্য ও খরচ যোগ হলে হিসাব দেখা যাবে" />
+      </Card>
+    );
   return (
     <>
       <Card>
@@ -514,7 +571,9 @@ function Split({ calc, count }: { calc: Calc; count: number }) {
           <span className="text-stone-500">জনপ্রতি খরচের ভাগ</span>
           <span className="font-bold text-stone-800">{fmt(calc.share)}</span>
         </div>
-        <p className="text-xs text-stone-400 mt-1">মোট খরচ {fmt(calc.spent)} ÷ {count} জন</p>
+        <p className="text-xs text-stone-400 mt-1">
+          মোট খরচ {fmt(calc.spent)} ÷ {count} জন
+        </p>
       </Card>
       <Card title="কে কত ফেরত পাবে / দিতে হবে">
         <ul className="divide-y divide-stone-100">
@@ -524,18 +583,21 @@ function Split({ calc, count }: { calc: Calc; count: number }) {
               <li key={m.id} className="py-2.5">
                 <div className="flex justify-between items-center">
                   <span className="text-stone-700">{m.name}</span>
-                  <span className={'font-semibold ' + (pos ? 'text-emerald-700' : 'text-rose-600')}>
-                    {pos ? 'ফেরত পাবে ' : 'দিতে হবে '}{fmt(Math.abs(m.balance))}
+                  <span className={"font-semibold " + (pos ? "text-emerald-700" : "text-rose-600")}>
+                    {pos ? "ফেরত পাবে " : "দিতে হবে "}
+                    {fmt(Math.abs(m.balance))}
                   </span>
                 </div>
-                <div className="text-xs text-stone-400 mt-0.5">জমা {fmt(m.given)} · ভাগ {fmt(m.share)}</div>
+                <div className="text-xs text-stone-400 mt-0.5">
+                  জমা {fmt(m.given)} · ভাগ {fmt(m.share)}
+                </div>
               </li>
             );
           })}
         </ul>
         <div className="mt-3 pt-3 border-t border-stone-100 flex justify-between text-sm">
           <span className="text-stone-500">ফান্ডে অবশিষ্ট</span>
-          <span className={'font-bold ' + (calc.remaining < 0 ? 'text-rose-600' : 'text-emerald-700')}>{fmt(calc.remaining)}</span>
+          <span className={"font-bold " + (calc.remaining < 0 ? "text-rose-600" : "text-emerald-700")}>{fmt(calc.remaining)}</span>
         </div>
       </Card>
     </>
