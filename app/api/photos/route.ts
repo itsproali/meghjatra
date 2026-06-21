@@ -5,6 +5,7 @@ import { r2, r2Upload, r2TotalBytes, publicUrl, STORAGE_LIMIT } from '../../../l
 export const dynamic = 'force-dynamic';
 
 const MAX = 8 * 1024 * 1024; // 8 MB প্রতি ফাইল
+const MAX_FOLDERS = 15; // সর্বোচ্চ অ্যালবাম সংখ্যা
 
 export async function GET() {
   const sb = admin();
@@ -12,7 +13,7 @@ export async function GET() {
   try {
     const { data, error } = await sb
       .from('photos')
-      .select('id, url, caption, uploader, created_at')
+      .select('id, url, caption, uploader, folder, created_at')
       .order('created_at', { ascending: false });
     if (error) throw error;
     return NextResponse.json(data || []);
@@ -30,6 +31,7 @@ export async function POST(req: Request) {
     const file = form.get('image');
     const caption = (form.get('caption') || '').toString().slice(0, 200);
     const uploader = (form.get('uploader') || 'অজ্ঞাত').toString().slice(0, 60);
+    const folder = (form.get('folder') || '').toString().trim().slice(0, 60);
 
     if (!file || typeof file === 'string') {
       return NextResponse.json({ error: 'no image' }, { status: 400 });
@@ -39,6 +41,19 @@ export async function POST(req: Request) {
     }
     if (file.size > MAX) {
       return NextResponse.json({ error: 'too large (max 8MB)' }, { status: 413 });
+    }
+    if (!folder) {
+      return NextResponse.json({ error: 'একটা অ্যালবাম বেছে নাও বা নতুন বানাও' }, { status: 400 });
+    }
+
+    // অ্যালবাম লিমিট: সর্বোচ্চ ১৫টা আলাদা অ্যালবাম
+    const { data: existing } = await sb.from('photos').select('folder').not('folder', 'is', null);
+    const distinct = new Set((existing || []).map((r) => (r as { folder: string }).folder));
+    if (!distinct.has(folder) && distinct.size >= MAX_FOLDERS) {
+      return NextResponse.json(
+        { error: 'সর্বোচ্চ ১৫টা অ্যালবাম বানানো যাবে' },
+        { status: 400 }
+      );
     }
 
     // ৯GB হার্ড লিমিট: bucket-এর আসল মোট সাইজ + এই ফাইল লিমিট ছাড়ালে reject
@@ -60,13 +75,14 @@ export async function POST(req: Request) {
     const url = publicUrl(path);
     const { data, error } = await sb
       .from('photos')
-      .insert({ url, path, caption, uploader })
-      .select('id, url, caption, uploader, created_at')
+      .insert({ url, path, caption, uploader, folder })
+      .select('id, url, caption, uploader, folder, created_at')
       .single();
     if (error) throw error;
 
     return NextResponse.json(data);
-  } catch {
+  } catch (error) {
+    console.error(error);
     return NextResponse.json({ error: 'upload failed' }, { status: 500 });
   }
 }

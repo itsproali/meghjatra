@@ -41,6 +41,7 @@ export default function Nav() {
   }
 
   return (
+    <>
     <header className="bg-emerald-900/90 backdrop-blur-md text-white sticky top-0 z-20 border-b border-emerald-800/40 supports-[backdrop-filter]:bg-emerald-900/80">
       <div className="mx-auto max-w-4xl px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2">
         <Link href="/" className="flex items-center gap-1.5 font-bold text-white shrink-0" title="হোম">
@@ -92,6 +93,7 @@ export default function Nav() {
           )}
         </div>
       </div>
+    </header>
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setOpen(false)}>
@@ -121,6 +123,6 @@ export default function Nav() {
           </div>
         </div>
       )}
-    </header>
+    </>
   );
 }

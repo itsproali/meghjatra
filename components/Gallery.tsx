@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Upload, Download, Trash2, Loader2, ImagePlus, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Upload, Download, Trash2, Loader2, ImagePlus, X, ChevronLeft, ChevronRight, Folder } from 'lucide-react';
 import ConfirmDialog from './ConfirmDialog';
 import { useOwner } from './OwnerProvider';
 import type { Photo } from '../lib/types';
@@ -21,6 +21,25 @@ export default function Gallery() {
   const [drag, setDrag] = useState(false);
   const [confirm, setConfirm] = useState<Photo | null>(null);
   const [lightbox, setLightbox] = useState<number | null>(null);
+  // ফোল্ডার: আপলোডের জন্য নির্বাচিত, নতুন বানানোর মোড, আর দেখার সময় কোন ফোল্ডার
+  const [folder, setFolder] = useState('');
+  const [newFolderMode, setNewFolderMode] = useState(false);
+  const [newFolder, setNewFolder] = useState('');
+  const [activeFolder, setActiveFolder] = useState<string | null>(null);
+
+  const UNCAT = '__uncat__';
+  const MAX_FOLDERS = 15;
+  const realFolders = Array.from(
+    new Set(photos.map((p) => p.folder).filter(Boolean) as string[])
+  ).sort((a, b) => a.localeCompare(b, 'bn'));
+  const atFolderLimit = realFolders.length >= MAX_FOLDERS;
+  const hasUncat = photos.some((p) => !p.folder);
+  const shown =
+    activeFolder === null
+      ? photos
+      : activeFolder === UNCAT
+        ? photos.filter((p) => !p.folder)
+        : photos.filter((p) => p.folder === activeFolder);
 
   useEffect(() => {
     try {
@@ -37,6 +56,11 @@ export default function Gallery() {
     setPreviews(urls);
     return () => urls.forEach((u) => URL.revokeObjectURL(u));
   }, [files]);
+
+  // কোনো অ্যালবাম না থাকলে আপলোড করতে হলে নতুন বানাতেই হবে
+  useEffect(() => {
+    if (!loading && realFolders.length === 0) setNewFolderMode(true);
+  }, [loading, realFolders.length]);
 
   async function load() {
     try {
@@ -64,6 +88,16 @@ export default function Gallery() {
       setErr('অন্তত একটা ছবি বেছে নাও');
       return;
     }
+    const folderToSend = (newFolderMode ? newFolder : folder || realFolders[0] || '').trim();
+    if (!folderToSend) {
+      setErr('একটা অ্যালবাম বেছে নাও বা নতুন বানাও');
+      return;
+    }
+    // নতুন অ্যালবাম হলে এবং ইতিমধ্যে ১৫টা থাকলে আটকাও
+    if (!realFolders.includes(folderToSend) && atFolderLimit) {
+      setErr(`সর্বোচ্চ ${toBn(MAX_FOLDERS)}টা অ্যালবাম বানানো যাবে`);
+      return;
+    }
     setBusy(true);
     try {
       localStorage.setItem('sajek-uploader-name', name);
@@ -79,6 +113,7 @@ export default function Gallery() {
         fd.append('image', files[i]);
         fd.append('caption', caption);
         fd.append('uploader', name || 'অজ্ঞাত');
+        fd.append('folder', folderToSend);
         const r = await fetch('/api/photos', { method: 'POST', body: fd });
         const j = (await r.json()) as Photo & { error?: string };
         if (!r.ok) throw new Error(j.error || 'failed');
@@ -95,6 +130,13 @@ export default function Gallery() {
     if (ok > 0) {
       setFiles([]);
       setCaption('');
+      // নতুন ফোল্ডারে আপলোড হলে সেটাকেই নির্বাচিত রাখি, যাতে পরের আপলোডও ওখানেই যায়
+      if (folderToSend) {
+        setFolder(folderToSend);
+        setActiveFolder(folderToSend);
+      }
+      setNewFolderMode(false);
+      setNewFolder('');
     }
     if (failMsg) setErr(ok > 0 ? `${toBn(ok)} টা আপলোড হলো। ${failMsg}` : failMsg);
   }
@@ -127,8 +169,8 @@ export default function Gallery() {
 
   // লাইটবক্স কীবোর্ড নেভিগেশন
   const move = useCallback(
-    (d: number) => setLightbox((cur) => (cur === null ? cur : (cur + d + photos.length) % photos.length)),
-    [photos.length]
+    (d: number) => setLightbox((cur) => (cur === null ? cur : (cur + d + shown.length) % shown.length)),
+    [shown.length]
   );
   useEffect(() => {
     if (lightbox === null) return;
@@ -204,6 +246,57 @@ export default function Gallery() {
           </div>
         )}
 
+        {/* অ্যালবাম নির্বাচন */}
+        <div className="mt-3">
+          <label className="text-xs text-stone-500 mb-1 flex items-center gap-1">
+            <Folder size={13} /> কোন অ্যালবামে রাখবে?
+          </label>
+          {newFolderMode ? (
+            <div className="flex gap-2">
+              <input
+                value={newFolder}
+                onChange={(e) => setNewFolder(e.target.value)}
+                autoFocus
+                maxLength={60}
+                placeholder="নতুন অ্যালবামের নাম"
+                className="flex-1 rounded-xl border border-stone-300 px-3 py-2 text-sm transition-colors focus:outline-none focus:border-emerald-500"
+              />
+              {realFolders.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewFolderMode(false);
+                    setNewFolder('');
+                  }}
+                  className="rounded-xl border border-stone-300 px-3 text-sm text-stone-500 hover:bg-stone-50"
+                >
+                  বাতিল
+                </button>
+              )}
+            </div>
+          ) : (
+            <select
+              value={folder || realFolders[0] || ''}
+              onChange={(e) => {
+                if (e.target.value === '__new__') setNewFolderMode(true);
+                else setFolder(e.target.value);
+              }}
+              className="w-full rounded-xl border border-stone-300 px-3 py-2 text-sm bg-white transition-colors focus:outline-none focus:border-emerald-500"
+            >
+              {realFolders.map((f) => (
+                <option key={f} value={f}>
+                  {f}
+                </option>
+              ))}
+              {!atFolderLimit && <option value="__new__">+ নতুন অ্যালবাম</option>}
+            </select>
+          )}
+          <p className="text-[11px] text-stone-400 mt-1">
+            {toBn(realFolders.length)}/{toBn(MAX_FOLDERS)} অ্যালবাম
+            {atFolderLimit && ' · লিমিট পূর্ণ'}
+          </p>
+        </div>
+
         <div className="grid grid-cols-2 gap-2 mt-3">
           <input
             value={name}
@@ -233,6 +326,34 @@ export default function Gallery() {
         </button>
       </div>
 
+      {/* ফোল্ডার ফিল্টার */}
+      {(realFolders.length > 0 || hasUncat) && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          {[
+            { key: null as string | null, label: 'সব' },
+            ...realFolders.map((f) => ({ key: f as string | null, label: f })),
+            ...(hasUncat ? [{ key: UNCAT as string | null, label: 'অন্যান্য' }] : []),
+          ].map((c) => (
+            <button
+              key={c.key ?? '__all__'}
+              onClick={() => {
+                setActiveFolder(c.key);
+                setLightbox(null);
+              }}
+              className={
+                'flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ' +
+                (activeFolder === c.key
+                  ? 'bg-emerald-700 text-white shadow-sm'
+                  : 'bg-white border border-stone-200 text-stone-600 hover:border-emerald-400')
+              }
+            >
+              {c.key !== null && <Folder size={13} />}
+              {c.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* গ্রিড */}
       {loading ? (
         <div className="flex items-center justify-center gap-2 text-stone-400 py-16">
@@ -245,7 +366,7 @@ export default function Gallery() {
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-          {photos.map((p, i) => (
+          {shown.map((p, i) => (
             <div key={p.id} className="group relative aspect-square rounded-2xl overflow-hidden bg-stone-200 shadow-sm">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -275,9 +396,11 @@ export default function Gallery() {
                 )}
               </div>
               {(p.caption || p.uploader) && (
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent p-2.5 pt-6 pointer-events-none">
-                  {p.caption && <p className="text-sm text-white font-medium truncate">{p.caption}</p>}
-                  <p className="text-xs text-white/75 truncate">{p.uploader || 'অজ্ঞাত'}</p>
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/30 to-transparent p-2.5 pt-7 pointer-events-none">
+                  {p.caption && (
+                    <p className="text-[15px] leading-snug text-white font-semibold truncate drop-shadow-sm">{p.caption}</p>
+                  )}
+                  {p.uploader && <p className="text-[11px] text-white/65 truncate">{p.uploader}</p>}
                 </div>
               )}
             </div>
@@ -286,15 +409,15 @@ export default function Gallery() {
       )}
 
       {/* লাইটবক্স */}
-      {lightbox !== null && photos[lightbox] && (
+      {lightbox !== null && shown[lightbox] && (
         <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex flex-col" onClick={() => setLightbox(null)}>
           <div className="flex items-center justify-between p-4 text-white/90">
-            <span className="text-sm">{toBn(lightbox + 1)} / {toBn(photos.length)}</span>
+            <span className="text-sm">{toBn(lightbox + 1)} / {toBn(shown.length)}</span>
             <div className="flex gap-2">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  download(photos[lightbox].url, lightbox);
+                  download(shown[lightbox].url, lightbox);
                 }}
                 className="rounded-full p-2 hover:bg-white/10"
                 title="ডাউনলোড"
@@ -307,7 +430,7 @@ export default function Gallery() {
             </div>
           </div>
           <div className="flex-1 flex items-center justify-center px-2 min-h-0" onClick={() => setLightbox(null)}>
-            {photos.length > 1 && (
+            {shown.length > 1 && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -321,12 +444,12 @@ export default function Gallery() {
             )}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={photos[lightbox].url}
-              alt={photos[lightbox].caption || 'ছবি'}
+              src={shown[lightbox].url}
+              alt={shown[lightbox].caption || 'ছবি'}
               onClick={(e) => e.stopPropagation()}
               className="max-h-full max-w-full object-contain rounded-lg"
             />
-            {photos.length > 1 && (
+            {shown.length > 1 && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -339,10 +462,14 @@ export default function Gallery() {
               </button>
             )}
           </div>
-          {(photos[lightbox].caption || photos[lightbox].uploader) && (
-            <div className="p-4 text-center text-white/85 text-sm">
-              {photos[lightbox].caption && <span className="font-medium">{photos[lightbox].caption} · </span>}
-              {photos[lightbox].uploader || 'অজ্ঞাত'}
+          {(shown[lightbox].caption || shown[lightbox].uploader) && (
+            <div className="p-4 text-center">
+              {shown[lightbox].caption && (
+                <p className="text-white font-semibold text-base">{shown[lightbox].caption}</p>
+              )}
+              {shown[lightbox].uploader && (
+                <p className="text-white/60 text-xs mt-0.5">{shown[lightbox].uploader}</p>
+              )}
             </div>
           )}
         </div>

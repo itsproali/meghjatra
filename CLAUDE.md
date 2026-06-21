@@ -70,7 +70,7 @@ lib/
 - `Contribution { id, memberId, amount, note? }`
 - `Expense { id, amount, desc, category|null, paidBy|null, ts? }`
 - `TripState { members[], contributions[], expenses[] }` — পুরোটা `app_state` টেবিলের একটা jsonb row (id=1)-এ থাকে।
-- `Photo { id, url, caption?, uploader?, created_at? }` — মেটাডেটা `photos` টেবিলে (`path` = R2 object key); আসল ফাইল R2 bucket-এ।
+- `Photo { id, url, caption?, uploader?, folder?, created_at? }` — মেটাডেটা `photos` টেবিলে (`path` = R2 object key); আসল ফাইল R2 bucket-এ। `folder` = অ্যালবাম নাম (আপলোডে বাধ্যতামূলক, সর্বোচ্চ ১৫টা আলাদা অ্যালবাম — `MAX_FOLDERS` Gallery.tsx + photos/route.ts দুই জায়গায়)।
 হিসাব: জনপ্রতি ভাগ = মোট খরচ ÷ সদস্য সংখ্যা; ব্যালান্স = (কারো জমা − ভাগ) → পজিটিভ মানে "ফেরত পাবে"। কারেন্সি ফরম্যাট `৳` + en-US রাউন্ডেড।
 
 ## এনভায়রনমেন্ট ভ্যারিয়েবল
@@ -98,9 +98,10 @@ insert into app_state (id) values (1) on conflict (id) do nothing;
 create table if not exists photos (
   id uuid primary key default gen_random_uuid(),
   url text not null, path text not null,
-  caption text, uploader text,
+  caption text, uploader text, folder text,
   created_at timestamptz default now()
 );
+-- আগের DB-তে folder কলাম না থাকলে: alter table photos add column if not exists folder text;
 ```
 3. URL + service_role key কপি করে env-এ বসাও (লোকালি `.env.local`, Vercel-এ Environment Variables)।
    (ছবির ফাইল আর Supabase Storage-এ নেই — R2-তে; নিচের ধাপ দেখো।)

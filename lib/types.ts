@@ -30,5 +30,6 @@ export interface Photo {
   url: string;
   caption?: string;
   uploader?: string;
+  folder?: string | null;
   created_at?: string;
 }
