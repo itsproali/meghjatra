@@ -40,8 +40,26 @@ export const R2_PUBLIC_URL = (process.env.R2_PUBLIC_URL || '').replace(/\/+$/, '
 // হার্ড স্টোরেজ লিমিট: ৯ GB। এর বেশি কোনোভাবে আপলোড করা যাবে না।
 export const STORAGE_LIMIT = 9 * 1024 * 1024 * 1024;
 
+// key-তে folder prefix / স্পেস / ইউনিকোড থাকতে পারে — প্রতিটা সেগমেন্ট আলাদা করে এনকোড করি
 export function publicUrl(key: string): string {
-  return `${R2_PUBLIC_URL}/${key}`;
+  const encoded = key.split('/').map(encodeURIComponent).join('/');
+  return `${R2_PUBLIC_URL}/${encoded}`;
+}
+
+// নতুন অ্যালবাম বানানোর সময় bucket-এ একটা ফোল্ডার মার্কার (`prefix/`) রাখি যাতে
+// ফাইল ছাড়াও R2 ড্যাশবোর্ডে ফোল্ডারটা দেখা যায়
+export async function r2EnsureFolder(prefix: string): Promise<void> {
+  const c = r2();
+  if (!c) throw new Error('r2 not configured');
+  const key = prefix.replace(/\/+$/, '') + '/';
+  await c.send(
+    new PutObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: key,
+      Body: Buffer.alloc(0),
+      ContentType: 'application/x-directory',
+    })
+  );
 }
 
 export async function r2Upload(key: string, body: Buffer, contentType: string): Promise<void> {
