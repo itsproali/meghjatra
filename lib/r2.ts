@@ -2,6 +2,7 @@ import {
   S3Client,
   PutObjectCommand,
   DeleteObjectCommand,
+  GetObjectCommand,
   ListObjectsV2Command,
   type ListObjectsV2CommandOutput,
 } from '@aws-sdk/client-s3';
@@ -40,10 +41,33 @@ export const R2_PUBLIC_URL = (process.env.R2_PUBLIC_URL || '').replace(/\/+$/, '
 // হার্ড স্টোরেজ লিমিট: ৯ GB। এর বেশি কোনোভাবে আপলোড করা যাবে না।
 export const STORAGE_LIMIT = 9 * 1024 * 1024 * 1024;
 
+// R2_PUBLIC_URL ঠিকঠাক একটা পাবলিক হোস্ট কিনা। S3 API endpoint (cloudflarestorage.com)
+// কখনোই পাবলিক না — সেটা সেট থাকলে আমরা প্রক্সি দিয়ে ছবি সার্ভ করি।
+export function r2PublicConfigured(): boolean {
+  return !!R2_PUBLIC_URL && !/cloudflarestorage\.com/i.test(R2_PUBLIC_URL);
+}
+
 // key-তে folder prefix / স্পেস / ইউনিকোড থাকতে পারে — প্রতিটা সেগমেন্ট আলাদা করে এনকোড করি
 export function publicUrl(key: string): string {
   const encoded = key.split('/').map(encodeURIComponent).join('/');
-  return `${R2_PUBLIC_URL}/${encoded}`;
+  // সঠিক পাবলিক URL সেট থাকলে r2.dev/কাস্টম ডোমেইন (egress ফ্রি)।
+  if (r2PublicConfigured()) return `${R2_PUBLIC_URL}/${encoded}`;
+  // না হলে অ্যাপের নিজের প্রক্সি দিয়ে সার্ভ করি — env ভুল থাকলেও ছবি কাজ করবে।
+  return `/api/img/${encoded}`;
+}
+
+// প্রক্সির জন্য: R2 থেকে অবজেক্ট পড়ি (S3 creds দিয়ে)
+export async function r2Get(key: string): Promise<{ body: Uint8Array; contentType: string } | null> {
+  const c = r2();
+  if (!c) return null;
+  try {
+    const res = await c.send(new GetObjectCommand({ Bucket: R2_BUCKET, Key: key }));
+    if (!res.Body) return null;
+    const body = await res.Body.transformToByteArray();
+    return { body, contentType: res.ContentType || 'application/octet-stream' };
+  } catch {
+    return null;
+  }
 }
 
 // নতুন অ্যালবাম বানানোর সময় bucket-এ একটা ফোল্ডার মার্কার (`prefix/`) রাখি যাতে

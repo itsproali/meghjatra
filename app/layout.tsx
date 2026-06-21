@@ -1,13 +1,21 @@
 import './globals.css';
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { ReactNode } from 'react';
 import Nav from '../components/Nav';
 import { OwnerProvider } from '../components/OwnerProvider';
+import PwaRegister from '../components/PwaRegister';
 import { BRAND } from '../lib/site';
 
 export const metadata: Metadata = {
   title: BRAND.title,
   description: BRAND.description,
+  applicationName: BRAND.name,
+  manifest: '/manifest.webmanifest',
+  appleWebApp: { capable: true, statusBarStyle: 'default', title: BRAND.name },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#064e3b',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -26,6 +34,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <Nav />
           <main>{children}</main>
         </OwnerProvider>
+        <PwaRegister />
       </body>
     </html>
   );
