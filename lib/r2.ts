@@ -1,0 +1,86 @@
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+  ListObjectsV2Command,
+  type ListObjectsV2CommandOutput,
+} from '@aws-sdk/client-s3';
+
+// ছবির ফাইল R2-তে রাখি। মেটাডেটা (caption/uploader/url) Supabase DB-তেই থাকে।
+
+let _client: S3Client | null = null;
+
+// R2_ACCOUNT_ID-তে কেউ পুরো endpoint URL বসালেও যেন চলে — শুধু ID অংশটা বের করি
+function accountId(raw: string): string {
+  const m = raw.match(/([a-z0-9]+)\.r2\.cloudflarestorage\.com/i);
+  if (m) return m[1];
+  return raw.replace(/^https?:\/\//, '').replace(/\/+$/, '').trim();
+}
+
+export function r2(): S3Client | null {
+  const rawId = process.env.R2_ACCOUNT_ID;
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+  if (!rawId || !accessKeyId || !secretAccessKey) return null;
+  if (!_client) {
+    _client = new S3Client({
+      region: 'auto',
+      endpoint: `https://${accountId(rawId)}.r2.cloudflarestorage.com`,
+      credentials: { accessKeyId, secretAccessKey },
+    });
+  }
+  return _client;
+}
+
+export const R2_BUCKET = process.env.R2_BUCKET || '';
+
+// পাবলিক URL শেষের '/' ছাড়া রাখি
+export const R2_PUBLIC_URL = (process.env.R2_PUBLIC_URL || '').replace(/\/+$/, '');
+
+// হার্ড স্টোরেজ লিমিট: ৯ GB। এর বেশি কোনোভাবে আপলোড করা যাবে না।
+export const STORAGE_LIMIT = 9 * 1024 * 1024 * 1024;
+
+export function publicUrl(key: string): string {
+  return `${R2_PUBLIC_URL}/${key}`;
+}
+
+export async function r2Upload(key: string, body: Buffer, contentType: string): Promise<void> {
+  const c = r2();
+  if (!c) throw new Error('r2 not configured');
+  await c.send(
+    new PutObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+    })
+  );
+}
+
+export async function r2Delete(key: string): Promise<void> {
+  const c = r2();
+  if (!c) throw new Error('r2 not configured');
+  await c.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: key }));
+}
+
+// bucket-এর সব ফাইলের মোট সাইজ (bytes)। এটাই ৯GB গার্ডের ground truth —
+// কোনো কাউন্টার drift হয় না, সরাসরি R2 থেকে পড়ে।
+export async function r2TotalBytes(): Promise<number> {
+  const c = r2();
+  if (!c) throw new Error('r2 not configured');
+  let total = 0;
+  let token: string | undefined = undefined;
+  do {
+    const res: ListObjectsV2CommandOutput = await c.send(
+      new ListObjectsV2Command({
+        Bucket: R2_BUCKET,
+        ContinuationToken: token,
+      })
+    );
+    for (const obj of res.Contents || []) {
+      total += obj.Size || 0;
+    }
+    token = res.IsTruncated ? res.NextContinuationToken : undefined;
+  } while (token);
+  return total;
+}

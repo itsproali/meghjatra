@@ -1,0 +1,363 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import { Upload, Download, Trash2, Loader2, ImagePlus, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import ConfirmDialog from './ConfirmDialog';
+import { useOwner } from './OwnerProvider';
+import type { Photo } from '../lib/types';
+import { toBn } from '../lib/site';
+
+export default function Gallery() {
+  const { isOwner, ownerKey } = useOwner();
+  const [photos, setPhotos] = useState<Photo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [files, setFiles] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
+  const [caption, setCaption] = useState('');
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [err, setErr] = useState('');
+  const [drag, setDrag] = useState(false);
+  const [confirm, setConfirm] = useState<Photo | null>(null);
+  const [lightbox, setLightbox] = useState<number | null>(null);
+
+  useEffect(() => {
+    try {
+      setName(localStorage.getItem('sajek-uploader-name') || '');
+    } catch {
+      /* ignore */
+    }
+    load();
+  }, []);
+
+  // নির্বাচিত ফাইলগুলোর প্রিভিউ URL — বদলালে আগেরগুলো revoke
+  useEffect(() => {
+    const urls = files.map((f) => URL.createObjectURL(f));
+    setPreviews(urls);
+    return () => urls.forEach((u) => URL.revokeObjectURL(u));
+  }, [files]);
+
+  async function load() {
+    try {
+      const r = await fetch('/api/photos', { cache: 'no-store' });
+      setPhotos((await r.json()) as Photo[]);
+    } catch {
+      /* ignore */
+    }
+    setLoading(false);
+  }
+
+  function addFiles(list: FileList | null) {
+    if (!list) return;
+    const imgs = Array.from(list).filter((f) => f.type.startsWith('image/'));
+    if (imgs.length) {
+      setErr('');
+      setFiles((prev) => [...prev, ...imgs]);
+    }
+  }
+  const removeFile = (idx: number) => setFiles((f) => f.filter((_, i) => i !== idx));
+
+  async function upload() {
+    setErr('');
+    if (files.length === 0) {
+      setErr('অন্তত একটা ছবি বেছে নাও');
+      return;
+    }
+    setBusy(true);
+    try {
+      localStorage.setItem('sajek-uploader-name', name);
+    } catch {
+      /* ignore */
+    }
+    let ok = 0;
+    let failMsg = '';
+    for (let i = 0; i < files.length; i++) {
+      setProgress({ done: i, total: files.length });
+      try {
+        const fd = new FormData();
+        fd.append('image', files[i]);
+        fd.append('caption', caption);
+        fd.append('uploader', name || 'অজ্ঞাত');
+        const r = await fetch('/api/photos', { method: 'POST', body: fd });
+        const j = (await r.json()) as Photo & { error?: string };
+        if (!r.ok) throw new Error(j.error || 'failed');
+        setPhotos((p) => [j, ...p]);
+        ok++;
+      } catch (e) {
+        const m = e instanceof Error ? e.message : '';
+        failMsg = m && m !== 'failed' ? m : 'কিছু ছবি আপলোড হয়নি';
+        break; // লিমিট/এরর হলে থেমে যাই
+      }
+    }
+    setProgress(null);
+    setBusy(false);
+    if (ok > 0) {
+      setFiles([]);
+      setCaption('');
+    }
+    if (failMsg) setErr(ok > 0 ? `${toBn(ok)} টা আপলোড হলো। ${failMsg}` : failMsg);
+  }
+
+  async function doDelete(id: string) {
+    setPhotos((p) => p.filter((x) => x.id !== id));
+    try {
+      await fetch('/api/photos/' + id, { method: 'DELETE', headers: { 'x-owner-key': ownerKey } });
+    } catch {
+      /* ignore */
+    }
+  }
+
+  async function download(url: string, idx: number) {
+    try {
+      const r = await fetch(url);
+      const b = await r.blob();
+      const u = URL.createObjectURL(b);
+      const a = document.createElement('a');
+      a.href = u;
+      a.download = 'sajek-' + (idx + 1) + '.jpg';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(u);
+    } catch {
+      window.open(url, '_blank');
+    }
+  }
+
+  // লাইটবক্স কীবোর্ড নেভিগেশন
+  const move = useCallback(
+    (d: number) => setLightbox((cur) => (cur === null ? cur : (cur + d + photos.length) % photos.length)),
+    [photos.length]
+  );
+  useEffect(() => {
+    if (lightbox === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLightbox(null);
+      else if (e.key === 'ArrowRight') move(1);
+      else if (e.key === 'ArrowLeft') move(-1);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [lightbox, move]);
+
+  return (
+    <div className="mx-auto max-w-4xl p-4 pb-24">
+      <header className="mb-4">
+        <h1 className="text-2xl font-bold text-emerald-900">ট্রিপের ছবি</h1>
+        <p className="text-sm text-stone-500">যে কেউ ছবি শেয়ার করতে পারবে · সবাই দেখতে ও ডাউনলোড করতে পারবে</p>
+      </header>
+
+      {/* আপলোড কার্ড */}
+      <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-4 mb-5">
+        <label
+          htmlFor="photo-input"
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDrag(true);
+          }}
+          onDragLeave={() => setDrag(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDrag(false);
+            addFiles(e.dataTransfer.files);
+          }}
+          className={
+            'flex flex-col items-center justify-center gap-1.5 border-2 border-dashed rounded-xl py-7 text-sm cursor-pointer transition-colors ' +
+            (drag ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-stone-300 text-stone-500 hover:border-emerald-400 hover:bg-stone-50')
+          }
+        >
+          <ImagePlus size={22} />
+          <span className="font-medium">ছবি বেছে নাও বা টেনে আনো</span>
+          <span className="text-xs text-stone-400">একসাথে অনেকগুলো দেওয়া যাবে</span>
+        </label>
+        <input
+          id="photo-input"
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => addFiles(e.target.files)}
+        />
+
+        {/* নির্বাচিত ছবির প্রিভিউ */}
+        {previews.length > 0 && (
+          <div className="mt-3">
+            <p className="text-xs text-stone-500 mb-2">{toBn(previews.length)} টা ছবি নির্বাচিত</p>
+            <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
+              {previews.map((src, i) => (
+                <div key={i} className="relative aspect-square rounded-lg overflow-hidden bg-stone-100 group">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={src} alt={'নির্বাচিত ' + (i + 1)} className="w-full h-full object-cover" />
+                  {!busy && (
+                    <button
+                      onClick={() => removeFile(i)}
+                      className="absolute top-0.5 right-0.5 bg-black/55 text-white rounded-full p-0.5 hover:bg-rose-600"
+                      title="বাদ দাও"
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-2 mt-3">
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="তোমার নাম"
+            className="rounded-xl border border-stone-300 px-3 py-2 text-sm transition-colors focus:outline-none focus:border-emerald-500"
+          />
+          <input
+            value={caption}
+            onChange={(e) => setCaption(e.target.value)}
+            placeholder="ক্যাপশন (অপশনাল)"
+            className="rounded-xl border border-stone-300 px-3 py-2 text-sm transition-colors focus:outline-none focus:border-emerald-500"
+          />
+        </div>
+        {err && <p className="text-sm text-rose-600 mt-2">{err}</p>}
+        <button
+          onClick={upload}
+          disabled={busy}
+          className="mt-3 w-full flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl py-2.5 text-sm font-medium shadow-sm transition-colors active:scale-[0.99] disabled:opacity-60"
+        >
+          {busy ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+          {busy && progress
+            ? `আপলোড হচ্ছে… ${toBn(progress.done + 1)}/${toBn(progress.total)}`
+            : files.length > 1
+              ? `${toBn(files.length)} টা ছবি শেয়ার করো`
+              : 'শেয়ার করো'}
+        </button>
+      </div>
+
+      {/* গ্রিড */}
+      {loading ? (
+        <div className="flex items-center justify-center gap-2 text-stone-400 py-16">
+          <Loader2 size={18} className="animate-spin" /> লোড হচ্ছে…
+        </div>
+      ) : photos.length === 0 ? (
+        <div className="text-center py-14 text-stone-400">
+          <ImagePlus size={32} className="mx-auto mb-2 opacity-60" />
+          <p className="text-sm">এখনো কোনো ছবি শেয়ার হয়নি — প্রথমটা তুমিই দাও!</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          {photos.map((p, i) => (
+            <div key={p.id} className="group relative aspect-square rounded-2xl overflow-hidden bg-stone-200 shadow-sm">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={p.url}
+                alt={p.caption || 'ছবি'}
+                loading="lazy"
+                onClick={() => setLightbox(i)}
+                className="w-full h-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-105"
+              />
+              {/* অ্যাকশন — মোবাইলে সবসময়, ডেস্কটপে হোভারে */}
+              <div className="absolute top-2 right-2 flex gap-1.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                <button
+                  onClick={() => download(p.url, i)}
+                  className="bg-white/90 backdrop-blur text-stone-700 hover:text-emerald-700 rounded-full p-1.5 shadow-sm"
+                  title="ডাউনলোড"
+                >
+                  <Download size={15} />
+                </button>
+                {isOwner && (
+                  <button
+                    onClick={() => setConfirm(p)}
+                    className="bg-white/90 backdrop-blur text-stone-700 hover:text-rose-600 rounded-full p-1.5 shadow-sm"
+                    title="মুছুন"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                )}
+              </div>
+              {(p.caption || p.uploader) && (
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent p-2.5 pt-6 pointer-events-none">
+                  {p.caption && <p className="text-sm text-white font-medium truncate">{p.caption}</p>}
+                  <p className="text-xs text-white/75 truncate">{p.uploader || 'অজ্ঞাত'}</p>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* লাইটবক্স */}
+      {lightbox !== null && photos[lightbox] && (
+        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex flex-col" onClick={() => setLightbox(null)}>
+          <div className="flex items-center justify-between p-4 text-white/90">
+            <span className="text-sm">{toBn(lightbox + 1)} / {toBn(photos.length)}</span>
+            <div className="flex gap-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  download(photos[lightbox].url, lightbox);
+                }}
+                className="rounded-full p-2 hover:bg-white/10"
+                title="ডাউনলোড"
+              >
+                <Download size={20} />
+              </button>
+              <button onClick={() => setLightbox(null)} className="rounded-full p-2 hover:bg-white/10" title="বন্ধ">
+                <X size={20} />
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 flex items-center justify-center px-2 min-h-0" onClick={() => setLightbox(null)}>
+            {photos.length > 1 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  move(-1);
+                }}
+                className="shrink-0 text-white/80 hover:text-white p-2"
+                title="আগের"
+              >
+                <ChevronLeft size={30} />
+              </button>
+            )}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={photos[lightbox].url}
+              alt={photos[lightbox].caption || 'ছবি'}
+              onClick={(e) => e.stopPropagation()}
+              className="max-h-full max-w-full object-contain rounded-lg"
+            />
+            {photos.length > 1 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  move(1);
+                }}
+                className="shrink-0 text-white/80 hover:text-white p-2"
+                title="পরের"
+              >
+                <ChevronRight size={30} />
+              </button>
+            )}
+          </div>
+          {(photos[lightbox].caption || photos[lightbox].uploader) && (
+            <div className="p-4 text-center text-white/85 text-sm">
+              {photos[lightbox].caption && <span className="font-medium">{photos[lightbox].caption} · </span>}
+              {photos[lightbox].uploader || 'অজ্ঞাত'}
+            </div>
+          )}
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={!!confirm}
+        title="ছবি মুছবেন?"
+        message="এই ছবিটা সবার জন্য মুছে যাবে।"
+        onConfirm={() => {
+          if (confirm) doDelete(confirm.id);
+          setConfirm(null);
+        }}
+        onCancel={() => setConfirm(null)}
+      />
+    </div>
+  );
+}
